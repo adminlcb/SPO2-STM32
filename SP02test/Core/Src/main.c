@@ -52,6 +52,8 @@ TIM_HandleTypeDef htim3;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+_KERMAN  KERMANR;
+_KERMAN  KERMANI;
 unsigned char READ_N = 0,IRD_N = 0;
 unsigned char stus= 0;//状态锟斤拷志
 
@@ -62,7 +64,18 @@ unsigned char u1tx=0;
 //BANK锟斤拷锟斤拷时锟斤拷
 int Bradtime=0;
 int Birdtime=0;
-int radata[10]={0}; 
+int Rindex=0;
+int radata[WITH_AVG]={0}; 
+int ir_buffer[220]={0}; 
+int ir_buffer_bf[220]={0}; 
+int Rmax=0;//记录窗口内最大值
+int Rmin=100;//记录窗口内最小值
+
+	int RadDC=0;
+  int IrDC=0;
+	int charge_r=0,charge_i=0;
+	int rate=0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,7 +93,7 @@ static void MX_TIM3_Init(void);
 void MY_LOG(UART_HandleTypeDef USARTx, char *fmt,...)
 {
  
-	unsigned char UsartPrintfBuf[296];
+	unsigned char UsartPrintfBuf[500];
 	va_list ap;
 	unsigned char *pStr = UsartPrintfBuf;
 	
@@ -102,8 +115,9 @@ void MY_LOG(UART_HandleTypeDef USARTx, char *fmt,...)
   */
 int main(void)
 {
-	int RadDC=0;
-  int IrDC=0;
+int charge_rmax=0,charge_rmin=100;
+int charge_imax=0,charge_imin=100;
+	float R=0,PI=0;
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -130,8 +144,10 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
- HAL_TIM_Base_Start_IT(&htim2);
- HAL_TIM_Base_Start_IT(&htim3);
+  Kerman_init();
+  HAL_TIM_Base_Start_IT(&htim2);
+  HAL_TIM_Base_Start_IT(&htim3);
+  fof_Init(&fof_1,5, 10, 0);	//低通滤波器，截止频率为10Hz 5ms 
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,11 +159,39 @@ int main(void)
 			u1tx=0;
 			RadDC = get_radavg(radtime);
       IrDC  = get_iravg(irdtime);
-			//MY_LOG(USART_DEBUG, "{r:%d,%d}\r\n",radtime,irdtime);
-			MY_LOG(USART_DEBUG, "{r:%d,%d}\r\n",RadDC+(radtime-Bradtime),IrDC+(irdtime-Birdtime));
+			charge_r = kaermanR(radtime-Bradtime)*15;
+			charge_i = kaermanI(irdtime-Birdtime)*15;
+			
+			MY_LOG(USART_DEBUG, "{r:%d,%d}\r\n",charge_r,charge_i);
+			//MY_LOG(USART_DEBUG, "{d:%d,%d}\r\n",RadDC+charge_r,IrDC+charge_i);
 			Bradtime = radtime;
 			Birdtime = irdtime;
-			
+			if(radtime>100){
+			if(Rindex<SAMPLE){
+				if(charge_r>charge_rmax)
+					charge_rmax = charge_r;
+				else if(charge_r<charge_rmin)
+					charge_rmin = charge_r;
+				if(charge_i>charge_imax)
+					charge_imax = charge_i;
+				else if(charge_i<charge_imin)
+					charge_imin = charge_i;
+				//GET_SPO2();
+				ir_buffer[Rindex]=IrDC+charge_i;
+				if(Rindex>(WITH_RATE-1))//大于滑动尺度开始计算
+					get_rate();
+				Rindex++;	
+			}
+			else{
+				Rindex=0;
+				rate = GET_RATE();
+				R = ((float)charge_rmax-charge_rmin)/((float)charge_imax-charge_imin)*((float)IrDC/RadDC);
+				PI = ((float)charge_rmax-charge_rmin) / (float)charge_rmax;
+				MY_LOG(USART_DEBUG, "{d:%d,%f,%f}\r\n",7229/rate,R,PI);
+				charge_rmax=0,charge_rmin=100;
+				charge_imax=0,charge_imin=100;
+			}
+		 } 
 		}
 		//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
 		
@@ -380,8 +424,144 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
-
 /* USER CODE BEGIN 4 */
+
+void GET_SPO2(void)
+{
+	float R=0;
+	//R = ((float)charge_r/(float)charge_i)*((float)IrDC/(float)RadDC);
+	//MY_LOG(USART_DEBUG, "{r:%d,%d,%d,%d}\r\n",charge_r,charge_i,IrDC,RadDC);
+	//MY_LOG(USART_DEBUG, "{r:%f}\r\n",(float)charge_r/(float)charge_i);
+}
+
+int GET_RATE(void)
+{
+	int index_max[10]={0},j=0,rrate=0;
+	int i=0,Rmedia=((Rmax+Rmin)*12)/20;
+	Rmax=0;
+	Rmin=100;
+	for(i=1;i<(SAMPLE-(WITH_RATE-1)-1);i++)
+	{
+		if(ir_buffer_bf[i]>Rmedia){
+			if(ir_buffer_bf[i]>=ir_buffer_bf[i+1] && ir_buffer_bf[i]>=ir_buffer_bf[i-1]){
+				index_max[j]=i;
+				i+=20;
+				j++;
+			}
+			if(j>10)
+				break;
+		}
+	}
+	if(j>1){
+		for(i=1;i<j;i++)
+			rrate+=(index_max[i]-index_max[i-1]);
+		return rrate/(j-1);
+	}
+	return 0;
+}
+
+int Count_Rate(void)
+{
+	int i=0,index_max[3]={0},temp;
+	for(i=0;i<(SAMPLE-(WITH_RATE-1));i++)
+	{
+		if(ir_buffer_bf[i]>index_max[0])
+			index_max[0]=i;
+	}
+	for(i=0;i<(SAMPLE-(WITH_RATE-1));i++)
+	{
+		if(i<(index_max[0]-15) || i>(index_max[0]+15))
+		{
+			if(ir_buffer_bf[i]>index_max[1])
+				index_max[1]=i;
+		}
+	}
+	if(index_max[0]>index_max[1])
+	{
+		temp = index_max[0];
+		index_max[0] = index_max[1] = temp;;
+		index_max[1] = temp;
+	}
+	for(i=0;i<(SAMPLE-(WITH_RATE-1));i++)
+	{
+		if((i<(index_max[0]-15)) || (i>(index_max[0]+15)&&i<(index_max[1]-15)) || (i>(index_max[1]+15)))
+		{
+			if(ir_buffer_bf[i]>index_max[2])
+				index_max[2]=i;
+		}
+	}
+//	MY_LOG(USART_DEBUG, "{r:%d,%d,%d}\r\n",index_max[0],index_max[1],index_max[2]);
+	if(index_max[2]<index_max[0])
+		return 7288/(index_max[1]-index_max[0]);
+	else if(index_max[2]>index_max[0] && index_max[2]<index_max[1])
+		return 7288/(index_max[1]-index_max[2]);
+	else if(index_max[2]>index_max[1])
+		return 7288/(index_max[2]-index_max[1]);
+//	if(index_max[2]<index_max[0])
+//	{
+//		temp = index_max[0];
+//		index_max[0] = index_max[1] = temp;;
+//		index_max[1] = temp;
+//	}
+//	else if()
+	return 0;
+}
+
+void get_rate(void)
+{
+	int i=Rindex,j=0,sum=0;
+		for(j=(i-(WITH_RATE-1));j<=i;j++){
+			sum = sum+ir_buffer[j];
+		}
+		ir_buffer_bf[i-(WITH_RATE-1)] = (sum/WITH_RATE);
+		if((sum/WITH_RATE)>Rmax)
+			Rmax = sum/WITH_RATE;
+		else if((sum/WITH_RATE)<Rmin)
+			Rmin = sum/WITH_RATE;
+	//MY_LOG(USART_DEBUG, "{r:%d}\r\n",ir_buffer_bf[i-(WITH_RATE-1)]);
+
+}
+
+void Kerman_init(void)
+{
+	//速度预测 小预测
+	KERMANR.x_last=0;
+	KERMANR.p_last=0;
+	KERMANR.Q=0.0001;
+	KERMANR.R=0.01;
+	//速度预测 大预测
+	KERMANI.Q = 0.0001;
+	KERMANI.R = 0.001;
+	KERMANI.x_last=0;
+	KERMANI.p_last=0;
+}
+
+//卡尔曼滤波函数
+float kaermanR(float z_measure)
+{ 
+	KERMANR.x_mid=KERMANR.x_last;
+	KERMANR.x_mid=KERMANR.x_last;                                
+	KERMANR.p_mid=KERMANR.p_last+KERMANR.Q;                                
+	KERMANR.kg=KERMANR.p_mid/(KERMANR.p_mid+KERMANR.R);                               
+	KERMANR.x_now=KERMANR.x_mid+KERMANR.kg*(z_measure-KERMANR.x_mid);                 
+	KERMANR.p_now=(1-KERMANR.kg)*KERMANR.p_mid;                               
+	KERMANR.p_last = KERMANR.p_now;                                     
+	KERMANR.x_last = KERMANR.x_now;                                    
+	return KERMANR.x_now;
+}
+//卡尔曼滤波函数
+float kaermanI(float z_measure)
+{ 
+	KERMANI.x_mid=KERMANI.x_last;
+	KERMANI.x_mid=KERMANI.x_last;                                
+	KERMANI.p_mid=KERMANI.p_last+KERMANI.Q;                                
+	KERMANI.kg=KERMANI.p_mid/(KERMANI.p_mid+KERMANI.R);                               
+	KERMANI.x_now=KERMANI.x_mid+KERMANI.kg*(z_measure-KERMANI.x_mid);                 
+	KERMANI.p_now=(1-KERMANI.kg)*KERMANI.p_mid;                               
+	KERMANI.p_last = KERMANI.p_now;                                     
+	KERMANI.x_last = KERMANI.x_now;                                    
+	return KERMANI.x_now;
+}
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -475,13 +655,13 @@ int get_radavg(int rat)
 {
 	unsigned char i=0;
 	int sum=rat;
-	for(i=0;i<9;i++)
+	for(i=0;i<(WITH_AVG-1);i++)
 	{
 		radata[i]=radata[i+1];
 		sum+=radata[i];
 	}
 	radata[i+1]=rat;
-	return sum/10;
+	return sum/WITH_AVG;
 }
 
 /*
@@ -491,13 +671,13 @@ int get_iravg(int rat)
 {
 	unsigned char i=0;
 	int sum=rat;
-	for(i=0;i<9;i++)
+	for(i=0;i<(WITH_AVG-1);i++)
 	{
 		radata[i]=radata[i+1];
 		sum+=radata[i];
 	}
 	radata[i+1]=rat;
-	return sum/10;
+	return sum/WITH_AVG;
 }
 /* USER CODE END 4 */
 

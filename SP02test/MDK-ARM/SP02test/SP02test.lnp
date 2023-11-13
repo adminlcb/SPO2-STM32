@@ -18,6 +18,7 @@
 "sp02test\stm32f1xx_hal_exti.o"
 "sp02test\stm32f1xx_hal_uart.o"
 "sp02test\system_stm32f1xx.o"
+"sp02test\butterworth.o"
 --strict --scatter "SP02test\SP02test.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

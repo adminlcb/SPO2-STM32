@@ -28,6 +28,7 @@ sp02test\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
 sp02test\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
 sp02test\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
 sp02test\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+sp02test\main.o: ..\APP\Butterworth\Butterworth.h
 sp02test\main.o: G:\keil\ARM\ARMCC\Bin\..\include\stdarg.h
 sp02test\main.o: G:\keil\ARM\ARMCC\Bin\..\include\string.h
 sp02test\main.o: G:\keil\ARM\ARMCC\Bin\..\include\stdio.h

@@ -8,6 +8,7 @@
                 "f:\\dome\\spo2\\SP02test\\Drivers\\STM32F1xx_HAL_Driver\\Inc\\Legacy",
                 "f:\\dome\\spo2\\SP02test\\Drivers\\CMSIS\\Device\\ST\\STM32F1xx\\Include",
                 "f:\\dome\\spo2\\SP02test\\Drivers\\CMSIS\\Include",
+                "f:\\dome\\spo2\\SP02test\\APP\\Butterworth",
                 "G:\\keil\\ARM\\ARMCC\\include",
                 "G:\\keil\\ARM\\ARMCC\\include\\rw",
                 "f:\\dome\\spo2\\SP02test\\MDK-ARM",
