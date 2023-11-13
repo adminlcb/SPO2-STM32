@@ -1,0 +1,25 @@
+--cpu Cortex-M3
+"sp02test\startup_stm32f103xb.o"
+"sp02test\main.o"
+"sp02test\stm32f1xx_it.o"
+"sp02test\stm32f1xx_hal_msp.o"
+"sp02test\stm32f1xx_hal_gpio_ex.o"
+"sp02test\stm32f1xx_hal_tim.o"
+"sp02test\stm32f1xx_hal_tim_ex.o"
+"sp02test\stm32f1xx_hal.o"
+"sp02test\stm32f1xx_hal_rcc.o"
+"sp02test\stm32f1xx_hal_rcc_ex.o"
+"sp02test\stm32f1xx_hal_gpio.o"
+"sp02test\stm32f1xx_hal_dma.o"
+"sp02test\stm32f1xx_hal_cortex.o"
+"sp02test\stm32f1xx_hal_pwr.o"
+"sp02test\stm32f1xx_hal_flash.o"
+"sp02test\stm32f1xx_hal_flash_ex.o"
+"sp02test\stm32f1xx_hal_exti.o"
+"sp02test\stm32f1xx_hal_uart.o"
+"sp02test\system_stm32f1xx.o"
+"sp02test\butterworth.o"
+--strict --scatter "SP02test\SP02test.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "SP02test.map" -o SP02test\SP02test.axf
